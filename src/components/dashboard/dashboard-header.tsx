@@ -34,11 +34,12 @@ export function DashboardHeader() {
 
   useEffect(() => {
     void fetchBalance()
-    const id = connection.onAccountChange(publicKey ?? null as any, () => {
+    if (!publicKey) return
+    const id = connection.onAccountChange(publicKey, () => {
       void fetchBalance()
     })
     return () => {
-      if (publicKey) void connection.removeAccountChangeListener(id)
+      void connection.removeAccountChangeListener(id)
     }
   }, [connection, fetchBalance, publicKey])
 
