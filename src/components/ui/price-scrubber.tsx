@@ -212,7 +212,7 @@ export function PriceScrubber({
         : []
 
   return (
-    <div className={cn("w-[560px]", className)}>
+    <div className={cn("w-full", className)}>
       {/* the header, three tiers (spec 14.1); scrubbing reads the point in place, the timeframe switch sits on its right */}
       <div className="mb-3 flex items-baseline justify-between text-[12px]">
         <span className="truncate text-foreground/45">{name}</span>

@@ -13,6 +13,10 @@
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
     "@drift-labs/sdk": "^2.163.0-beta.13",
+    "@solana/wallet-adapter-base": "^0.9.28",
+    "@solana/wallet-adapter-react": "^0.15.40",
+    "@solana/wallet-adapter-react-ui": "^0.9.40",
+    "@solana/wallet-adapter-wallets": "^0.19.40",
     "@solana/web3.js": "^1.99.0",
     "bs58": "^6.0.0",
     "clsx": "^2.1.1",
