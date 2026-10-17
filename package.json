@@ -11,6 +11,8 @@
     "micro-swap": "node scripts/micro-swap.mjs"
   },
   "dependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@drift-labs/sdk": "^2.163.0-beta.13",
     "@solana/web3.js": "^1.99.0",
     "bs58": "^6.0.0",
     "clsx": "^2.1.1",
