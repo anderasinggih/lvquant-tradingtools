@@ -245,7 +245,13 @@ export function BotConfigPanel({
             <SegmentedControl
               options={[...LEVERAGES]}
               value={venue === "Jupiter Spot" ? "1x" : leverage}
-              onChange={(v) => setLeverage(v as (typeof LEVERAGES)[number])}
+              onChange={(v) => {
+                const val = v as (typeof LEVERAGES)[number]
+                setLeverage(val)
+                if (val !== "1x") {
+                  setVenue("Drift Perp")
+                }
+              }}
               label="Leverage"
             />
           </div>
