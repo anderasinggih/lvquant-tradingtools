@@ -101,9 +101,14 @@ Setiap langkah wajib diverifikasi selesai dan lulus uji sebelum melangkah ke poi
   - API: `POST /api/bot/dry-run` (mulai, body opsi opsional), `GET` (status + log + trades live), `DELETE` (stop manual); direktorat `/api/bot/dry-run` terdaftar di build.
   - CLI: `scripts/dry-run.mjs` + npm script `dry-run` (klien tipis ke server — stream log ke terminal, ringkas counters/trades/lastError, exit code non-nol bila ada warning).
   - Terverifikasi: `tsc --noEmit`, `eslint`, `next build` lulus 0 error; smoke test live terhadap feed Jupiter nyata (SOL ~$103): (A) ENTRY + EXIT `take_profit` + re-entry, (B) EXIT `stop_loss` → `CIRCUIT_BREAKER_TRIPPED` → beli diblokir, (C) EXIT `trailing_stop` (peak maju lalu pullback), (D) opsi invalid (`intervalMs:0`) → HTTP 400 `intervalMs must be a number >= 250`, (E) `DELETE` menghentikan run berjalan → status `STOPPED`; 0 price error, tanpa transaksi terkirim.
-- [ ] **6.2 Micro Test Swap (Transaksi Riil Nilai Sangat Kecil)**
+- [ ] **6.2 Micro Test Swap (Transaksi Riil Nilai Sangat Kecil)** — *tooling siap, eksekusi live menunggu wallet terisi (jalankan sendiri oleh operator)*
   - Lakukan 1 kali swap riil dengan modal sangat kecil (~0.005 SOL atau ~$1) untuk memvalidasi:
     1. Quote berhasil didapat dari Jupiter.
     2. Transaksi ter-sign dengan aman.
     3. Transaksi terkonfirmasi di Solscan.
     4. Tampilan saldo di dashboard ter-update secara otomatis lewat `LiveFigure`.
+  - `src/lib/bot/micro-swap.ts` (`runMicroSwap` — one-shot 0.005 SOL→USDC dgn guard berlapis: validasi angka; tolak jika bukan mainnet-beta; quote live Jupiter; guard price impact; estimasi priority fee utk akun route; **guard saldo** = amount + base fee 5000 + rent ATA (bila belum ada) + tip + reserve operator; build+sign lokal; submit & tunggu `confirmed`; baca ulang saldo sampai USDC berubah. `microSwapPreflight` = cek read-only siap/tidak. Cap micro keras 0.01 SOL. Error ber-kode + signature + Solscan, ZERO silent no-op).
+  - API: `GET /api/bot/micro-swap` (preflight: wallet/saldo/kesiapan), `POST` (eksekusi 1 swap) — **wajib** body `{"confirm":true}` untuk mencegah trade tak sengaja; dipetakan ke HTTP 400/422/502 per tahap.
+  - CLI: `scripts/micro-swap.mjs` + npm script `micro-swap` (`--dry-run` preflight saja, prompt ketik "swap", `--yes`, `--amount/--slippage/--max-priority/--reserve/--max-impact`; mencetak Quote, priority fee, Signed TX, signature + tautan Solscan, dan perubahan saldo sebelum vs sesudah).
+  - Terverifikasi: `tsc --noEmit`, `eslint`, `next build` lulus 0 error (rute `/api/bot/micro-swap` terdaftar); guard diuji tanpa mengirim dana: POST tanpa `confirm` → HTTP 400 `confirm_required`; `amountSol:1` → 400 `amount_too_large`; `slippageBps:0` → 400 `invalid_slippage`; `GET`/`--dry-run` dgn `.env` kosong → laporan jelas "Set SOLANA_RPC_URL and SOLANA_PRIVATE_KEY…".
+

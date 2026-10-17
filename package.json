@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "dry-run": "node scripts/dry-run.mjs"
+    "dry-run": "node scripts/dry-run.mjs",
+    "micro-swap": "node scripts/micro-swap.mjs"
   },
   "dependencies": {
     "@solana/web3.js": "^1.99.0",
