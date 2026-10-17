@@ -31,6 +31,7 @@ Proyek ini dibangun dengan standar institusional: **100% Real Data & Execution**
 | **Animation** | Motion / React (Framer Motion) |
 | **Blockchain** | Solana Mainnet-Beta (`@solana/web3.js`) |
 | **DEX Aggregator** | Jupiter Swap API (`https://api.jup.ag`) |
+| **Market Data** | Jupiter Price API (live) · Binance Klines (history 1D/1W/1M, keyless & free) |
 | **RPC Provider** | Helius / Quicknode / Triton |
 
 ---

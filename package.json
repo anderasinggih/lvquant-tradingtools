@@ -9,7 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@solana/web3.js": "^1.99.0",
+    "bs58": "^6.0.0",
     "clsx": "^2.1.1",
+    "lucide-react": "^1.59.0",
     "motion": "^14.3.0",
     "next": "16.4.2",
     "react": "19.3.0",
