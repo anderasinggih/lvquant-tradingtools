@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "dry-run": "node scripts/dry-run.mjs"
   },
   "dependencies": {
     "@solana/web3.js": "^1.99.0",

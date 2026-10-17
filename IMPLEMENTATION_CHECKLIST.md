@@ -95,8 +95,12 @@ Setiap langkah wajib diverifikasi selesai dan lulus uji sebelum melangkah ke poi
 ---
 
 ## FASE 6: Live Testing Skala Mikro & Verifikasi
-- [ ] **6.1 Dry-Run (Verifikasi Feed & Logika Sinyal)**
+- [x] **6.1 Dry-Run (Verifikasi Feed & Logika Sinyal)**
   - Jalankan bot dalam mode dry-run di data live untuk memastikan sinyal dan trigger Stop-Loss terpantau akurat di console/log.
+  - `src/lib/bot/dry-run.ts` (`DryRunEngine` singleton proses-wide — loop paper-trading di harga Jupiter **live** tanpa pernah build/sign/kirim transaksi; tiap tick baca harga → mark-to-market posisi kertas (majukan peak trailing) lewat `PositionTracker`/`evaluateExit` yang sama dgn bot live → buka/tutup posisi paper + suapkan PnL riil ke `DailyLossCircuitBreaker` asli; tracker + breaker sendiri sehingga tidak menyentuh posisi nyata bot (Rules §1/§2); opsi `intervalMs`/`maxTicks`/`notionalUsd`/`exitConfig`/`circuitBreakerConfig`/`maxLogEntries` tervalidasi & misconfig dilempar; error harga live dihitung + `lastError` tanpa silent-fail; `start`/`stop`/`state` + log ber-cap).
+  - API: `POST /api/bot/dry-run` (mulai, body opsi opsional), `GET` (status + log + trades live), `DELETE` (stop manual); direktorat `/api/bot/dry-run` terdaftar di build.
+  - CLI: `scripts/dry-run.mjs` + npm script `dry-run` (klien tipis ke server — stream log ke terminal, ringkas counters/trades/lastError, exit code non-nol bila ada warning).
+  - Terverifikasi: `tsc --noEmit`, `eslint`, `next build` lulus 0 error; smoke test live terhadap feed Jupiter nyata (SOL ~$103): (A) ENTRY + EXIT `take_profit` + re-entry, (B) EXIT `stop_loss` → `CIRCUIT_BREAKER_TRIPPED` → beli diblokir, (C) EXIT `trailing_stop` (peak maju lalu pullback), (D) opsi invalid (`intervalMs:0`) → HTTP 400 `intervalMs must be a number >= 250`, (E) `DELETE` menghentikan run berjalan → status `STOPPED`; 0 price error, tanpa transaksi terkirim.
 - [ ] **6.2 Micro Test Swap (Transaksi Riil Nilai Sangat Kecil)**
   - Lakukan 1 kali swap riil dengan modal sangat kecil (~0.005 SOL atau ~$1) untuk memvalidasi:
     1. Quote berhasil didapat dari Jupiter.
