@@ -10,6 +10,7 @@ import { HISTORY_TIMEFRAMES, type HistoryTimeframe, type MarketHistory, type Pri
 
 /** Candle interval and candle count per timeframe — each window is a readable series. */
 const PLAN: Record<HistoryTimeframe, { interval: string; limit: number }> = {
+  "1m": { interval: "1m", limit: 60 },  // 1 hour of 1-minute candles
   "1D": { interval: "15m", limit: 96 }, // 24h of 15-minute candles
   "1W": { interval: "1h", limit: 168 }, // 7d of hourly candles
   "1M": { interval: "4h", limit: 180 }, // 30d of 4-hour candles

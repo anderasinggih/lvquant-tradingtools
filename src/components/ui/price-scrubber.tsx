@@ -24,14 +24,19 @@ const GREEN = "var(--chart-up)"
 const RED = "var(--chart-down)"
 
 /** every timeframe the scrubber knows about (the caller chooses which to show as pills) */
-export type ScrubTimeframe = "1D" | "1W" | "1M" | "1Y" | "All"
+export type ScrubTimeframe = "1m" | "1D" | "1W" | "1M" | "1Y" | "All"
 
 /** trailing window length per timeframe */
-const N: Record<ScrubTimeframe, number> = { "1D": 78, "1W": 84, "1M": 90, "1Y": 120, All: 150 }
+const N: Record<ScrubTimeframe, number> = { "1m": 60, "1D": 78, "1W": 84, "1M": 90, "1Y": 120, All: 150 }
 
 function timeLabel(tf: ScrubTimeframe, f: number): string {
   const clamp = (x: number, top: number) => Math.max(0, Math.min(top, x))
   switch (tf) {
+    case "1m": {
+      const sec = Math.round(f * 3600)
+      const m = Math.floor(sec / 60)
+      return `${m}m ago`
+    }
     case "1D": {
       const m = 570 + Math.round(f * 390)
       return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`
@@ -48,6 +53,7 @@ function timeLabel(tf: ScrubTimeframe, f: number): string {
 }
 
 const AXES: Record<ScrubTimeframe, string[]> = {
+  "1m": ["60m", "40m", "20m", "now"],
   "1D": ["09:30", "11:30", "13:30", "15:30"],
   "1W": ["Mon", "Wed", "Fri"],
   "1M": ["Wk 1", "Wk 2", "Wk 3", "Wk 4"],
@@ -56,7 +62,7 @@ const AXES: Record<ScrubTimeframe, string[]> = {
 }
 
 /** what the move is measured over, at rest */
-const WINDOW: Record<ScrubTimeframe, string> = { "1D": "today", "1W": "past week", "1M": "past month", "1Y": "past year", All: "all time" }
+const WINDOW: Record<ScrubTimeframe, string> = { "1m": "past hour", "1D": "today", "1W": "past week", "1M": "past month", "1Y": "past year", All: "all time" }
 
 const axisUsd = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`
 const fmtPrice = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -243,10 +249,8 @@ export function PriceScrubber({
 
       <svg
         ref={svgRef}
-        width={W}
-        height={H}
         viewBox={`0 0 ${W} ${H}`}
-        className="block cursor-crosshair touch-none"
+        className="block h-auto w-full cursor-crosshair touch-none"
         role="img"
         aria-label={`${name} (${symbol}) price over the ${windowLabel}, ${fmtPrice(series[n - 1])}`}
         onPointerMove={onMove}

@@ -20,13 +20,13 @@ const DOWN = "var(--chart-down)"
 
 const fmtPrice = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-/** The three timeframes the chart serves, in pill order. */
-const CHART_TIMEFRAMES: ScrubTimeframe[] = ["1D", "1W", "1M"]
+/** The timeframes the chart serves, in pill order. */
+const CHART_TIMEFRAMES: ScrubTimeframe[] = ["1m", "1D", "1W", "1M"]
 
-/** A real per-point label: clock time within a day, calendar date across a week or month. */
+/** A real per-point label: clock time within an hour or day, calendar date across a week or month. */
 function pointLabel(tf: HistoryTimeframe, unixSeconds: number): string {
   const d = new Date(unixSeconds * 1000)
-  if (tf === "1D") {
+  if (tf === "1m" || tf === "1D") {
     return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })
   }
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
