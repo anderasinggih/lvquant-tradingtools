@@ -20,7 +20,9 @@ import { rawToAmount } from "./sizing"
    hard stop-loss caps a loss, the take-profit books a gain, and an optional trailing stop locks in a
    run once armed (logic lives in `evaluateExit`). When a rule fires, the monitor swaps the base back
    through the same Jupiter quote → build → sign → submit pipeline as any other trade — a real exit is
-   only reported once the rule actually trips and the swap path is invoked (Rules §1). */
+   only reported once the rule actually trips and the swap path is invoked (Rules §1).
+   {@link liquidatePosition} reuses the same settlement path for the emergency panic-sell (Fase 5.4):
+   it swaps the whole position back to the quote with no exit-rule evaluation. */
 
 /** Default slippage tolerance for the exit swap back into the quote asset (1%). */
 export const DEFAULT_EXIT_SLIPPAGE_BPS = 100
@@ -52,16 +54,14 @@ export interface CreatePositionInput {
 
 /**
  * Build a validated open position, seeding the trailing-stop high-water mark with the entry price (or
- * an explicit `peakPriceUsd`). Throws on malformed input rather than silently coercing it.
+ * an explicit `peakPriceUsd`).
  */
 export function createPosition(input: CreatePositionInput): Position {
-  if (!input.id?.trim()) throw new Error("position id is required")
-  if (!input.pair?.trim()) throw new Error("position pair is required")
+  if (!input.id?.trim()) throw new Error("id is required")
+  if (!input.pair?.trim()) throw new Error("pair is required")
   if (!(input.entryPriceUsd > 0)) throw new Error("entryPriceUsd must be positive")
   if (!(input.entryNotionalUsd > 0)) throw new Error("entryNotionalUsd must be positive")
   if (input.baseAmountRaw <= BigInt(0)) throw new Error("baseAmountRaw must be positive")
-  const peakPriceUsd = input.peakPriceUsd ?? input.entryPriceUsd
-  if (!(peakPriceUsd > 0)) throw new Error("peakPriceUsd must be positive")
   return {
     id: input.id,
     pair: input.pair,
@@ -70,7 +70,7 @@ export function createPosition(input: CreatePositionInput): Position {
     baseAmountRaw: input.baseAmountRaw,
     entryPriceUsd: input.entryPriceUsd,
     entryNotionalUsd: input.entryNotionalUsd,
-    peakPriceUsd,
+    peakPriceUsd: input.peakPriceUsd ?? input.entryPriceUsd,
     openedAt: input.openedAt ?? new Date().toISOString(),
   }
 }
@@ -150,7 +150,7 @@ export class PositionTracker {
 export interface ExitExecutionOptions {
   /** signer for the swap-back; defaults to the bot wallet from `SOLANA_PRIVATE_KEY`. */
   signer?: Keypair
-  /** slippage tolerance for the exit swap, in bps. Default {@link DEFAULT_EXIT_SLIPPAGE_BPS}. */
+  /** slippage tolerance for the swap-back, in bps. Default {@link DEFAULT_EXIT_SLIPPAGE_BPS}. */
   slippageBps?: number
   /** live USD price of the quote asset; defaults to {@link DEFAULT_QUOTE_USD_PRICE}. */
   quoteUsdPrice?: number
@@ -158,25 +158,15 @@ export interface ExitExecutionOptions {
   skipPriorityFee?: boolean
 }
 
-export interface ClosePositionOptions extends ExitExecutionOptions {
-  config: PositionExitConfig
-  /** swap back only this many base units (defaults to the whole position). */
-  baseAmountRaw?: bigint
-}
-
-export interface ClosePositionResult {
-  position: Position
-  /** the evaluation that justified the exit (reason, PnL at the moment of closing) */
-  evaluation: PositionEvaluation
-  /** which rule fired */
-  exitReason: ExitReason
+/** The common result of settling an exit / liquidation: the swap, its proceeds and the realized PnL. */
+export interface ExitSettlement {
   /** the quote used for the swap-back (base → quote) */
   quote: JupiterQuote
   /** the on-chain execution result (signature, slot, Solscan receipt) */
   execution: SwapExecutionResult
   /** base units actually swapped back */
   closedBaseAmountRaw: bigint
-  /** raw quote units received, as quoted by the exit swap */
+  /** raw quote units received, as quoted by the swap */
   proceedsRaw: bigint
   /** proceeds valued in USD (quote price × amount) */
   proceedsUsd: number
@@ -188,33 +178,43 @@ export interface ClosePositionResult {
   realizedPnlPct: number
 }
 
-/**
- * Close a position: re-evaluate it against `currentPriceUsd`, quote the base → quote swap, and execute
- * it via {@link executeSwap}. Returns the evaluation and the realized PnL. A thrown error (bad quote,
- * rejected swap) propagates so the caller can keep the position tracked and retry on the next tick.
- */
-export async function closePosition(
-  position: Position,
-  currentPriceUsd: number,
-  options: ClosePositionOptions,
-): Promise<ClosePositionResult> {
-  const evaluation = evaluateExit(position, currentPriceUsd, options.config)
+export interface ClosePositionOptions extends ExitExecutionOptions {
+  config: PositionExitConfig
+  /** swap back only this many base units (defaults to the whole position). */
+  baseAmountRaw?: bigint
+}
 
-  const closedBaseAmountRaw = options.baseAmountRaw ?? position.baseAmountRaw
+export interface ClosePositionResult extends ExitSettlement {
+  position: Position
+  /** the evaluation that justified the exit (reason, PnL at the moment of closing) */
+  evaluation: PositionEvaluation
+  /** which rule fired */
+  exitReason: ExitReason
+}
+
+export interface LiquidationResult extends ExitSettlement {
+  position: Position
+}
+
+/**
+ * Swap `closedBaseAmountRaw` of the position's base back into its quote via Jupiter and value the
+ * proceeds. Shared by the rule-based close and the panic liquidation. Throws before any swap on an
+ * invalid amount, and propagates quote / submit failures (never a silent no-op).
+ */
+async function settleExit(
+  position: Position,
+  closedBaseAmountRaw: bigint,
+  options: ExitExecutionOptions,
+): Promise<ExitSettlement> {
   if (closedBaseAmountRaw <= BigInt(0)) {
-    throw new Error("baseAmountRaw to close must be positive")
+    throw new Error("amount to close must be positive")
   }
   if (closedBaseAmountRaw > position.baseAmountRaw) {
-    throw new Error("baseAmountRaw to close exceeds the position size")
+    throw new Error("amount to close exceeds the position size")
   }
 
   const slippageBps = options.slippageBps ?? DEFAULT_EXIT_SLIPPAGE_BPS
-  const quote = await getQuote(
-    position.base.mint,
-    position.quote.mint,
-    closedBaseAmountRaw,
-    slippageBps,
-  )
+  const quote = await getQuote(position.base.mint, position.quote.mint, closedBaseAmountRaw, slippageBps)
 
   const execution = await executeSwap({
     quote,
@@ -231,9 +231,6 @@ export async function closePosition(
   const realizedPnlPct = costBasisUsd > 0 ? (realizedPnlUsd / costBasisUsd) * 100 : 0
 
   return {
-    position,
-    evaluation,
-    exitReason: evaluation.reason,
     quote,
     execution,
     closedBaseAmountRaw,
@@ -243,6 +240,39 @@ export async function closePosition(
     realizedPnlUsd,
     realizedPnlPct,
   }
+}
+
+/**
+ * Close a position per the exit rules: re-evaluate it against `currentPriceUsd`, then settle the swap
+ * back. Returns the evaluation and the realized PnL. A thrown error (bad quote, rejected swap)
+ * propagates so the caller can keep the position tracked and retry on the next tick.
+ */
+export async function closePosition(
+  position: Position,
+  currentPriceUsd: number,
+  options: ClosePositionOptions,
+): Promise<ClosePositionResult> {
+  const evaluation = evaluateExit(position, currentPriceUsd, options.config)
+  const settlement = await settleExit(position, options.baseAmountRaw ?? position.baseAmountRaw, options)
+  return {
+    position,
+    evaluation,
+    exitReason: evaluation.reason,
+    ...settlement,
+  }
+}
+
+/**
+ * Liquidate a position immediately regardless of the exit rules (panic sell, Fase 5.4): swap the
+ * whole position back into the quote and return the settled proceeds + realized PnL. No mark price is
+ * needed — the realized result comes from the actual swap. Propagates quote / submit failures.
+ */
+export async function liquidatePosition(
+  position: Position,
+  options: ExitExecutionOptions = {},
+): Promise<LiquidationResult> {
+  const settlement = await settleExit(position, position.baseAmountRaw, options)
+  return { position, ...settlement }
 }
 
 /**

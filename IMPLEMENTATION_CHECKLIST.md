@@ -82,8 +82,15 @@ Setiap langkah wajib diverifikasi selesai dan lulus uji sebelum melangkah ke poi
   - Melacak akumulasi rugi dalam 24 jam. Jika mencapai batas maksimal (misal -$15 atau -5% total equity), kunci bot dan ubah status ke `CIRCUIT_BREAKER_TRIPPED`.
   - `src/lib/risk/circuit-breaker.ts` (`DailyLossCircuitBreaker` murni/deterministik, dependency-free — `record`/`recordRealizedPnl` idempoten by `id` anti-double-count; window bergulir 24h (entri lama di-prune); trip saat rugi `>=` threshold = **min** dari `maxLossUsd` dan `maxLossPct×capitalUsd` (yang lebih ketat menang); latch `CIRCUIT_BREAKER_TRIPPED` + `lockedUntil = now + cooldownMs`; `canOpenBuy`/`assertCanOpenBuy` blokir beli (sell/exit tidak pernah diblokir); lock dilepas otomatis setelah 24 jam penuh; `tripManually`/`reset` untuk override operator; config divalidasi & misconfig dilempar).
   - Terverifikasi: 20 skenario runtime lulus (ACTIVE bersih, trip di cap USD, cap %-tighter, blokir beli + lock 24 jam penuh, lift setelah cooldown, rolling window meng-ages-out, idempoten, manual+reset, throw `CircuitBreakerError`, validasi config) + `tsc --noEmit`, `eslint`, `next build` lulus 0 error.
-- [ ] **5.4 Tombol Darurat Manual (Panic Sell / Pause)**
+- [x] **5.4 Tombol Darurat Manual (Panic Sell / Pause)**
   - Tombol di UI untuk membatalkan semua aktivitas dan melikuidasi posisi terbuka ke SOL/USDC secara instan.
+  - `src/lib/bot/controller.ts` (`BotController` singleton proses-wide — pemegang tunggal `PositionTracker` + `DailyLossCircuitBreaker` yang akan dipakai engine Fase 6; `pause`/`resume` + `signal` (AbortSignal) utk membatalkan loop; `panicSell` membatalkan loop lalu melikuidasi **semua** posisi terbuka satu-per-satu via `liquidatePosition` (slip default 2%), hapus tiap posisi hanya setelah swap terkonfirmasi, kumpulkan `failures` tanpa menghentikan likuidasi lain; view JSON-safe + receipt Solscan).
+  - `src/lib/risk/monitor.ts` (+`liquidatePosition` + `ExitSettlement`; jalur `settleExit` dipakai bersama `closePosition`, tanpa evaluasi harga mark — hasil nyata dari swap).
+  - API: `GET /api/bot/state` (status + posisi + breaker), `POST /api/bot/pause`, `POST /api/bot/resume`, `POST /api/bot/panic` (opsional body `{slippageBps}`, divalidasi 0–10000; error terklasifikasi EnvConfig/Quote/Submit/Rpc).
+  - UI: `src/components/dashboard/bot-control-panel.tsx` (client, polling 5s sadar-tab) — tombol Pause/Resume, PANIC SELL dua-langkah (arm → confirm) + status konfirmasi on-chain dengan tautan Solscan tiap likuidasi; di-wire ke `src/app/page.tsx`.
+  - Terverifikasi: `tsc --noEmit`, `eslint` (0 warning), `next build` lulus (rute `/api/bot/{state,pause,resume,panic}` terdaftar); smoke test server nyata: `state`→PAUSED, `resume`→RUNNING, `pause`→PAUSED(manual), `panic` tanpa posisi → `{attempted:0,closed:[],failures:[]}` + bot ter-pause, slippage invalid → HTTP 400.
+
+> **FASE 5 SELESAI** — stop-loss/take-profit, circuit breaker harian, dan tombol darurat Pause/Panic Sell siap. Lanjut Fase 6 (live testing skala mikro).
 
 ---
 

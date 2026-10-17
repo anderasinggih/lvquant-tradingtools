@@ -1,3 +1,4 @@
+import { BotControlPanel } from "@/components/dashboard/bot-control-panel"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { LivePricePanel } from "@/components/dashboard/live-price-panel"
 import { PositionsPanel } from "@/components/dashboard/positions-panel"
@@ -13,6 +14,8 @@ export default function Home() {
 
         <RiskControlPanel />
       </div>
+
+      <BotControlPanel />
 
       <PositionsPanel />
     </main>
