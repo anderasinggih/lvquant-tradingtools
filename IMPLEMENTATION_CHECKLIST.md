@@ -78,8 +78,10 @@ Setiap langkah wajib diverifikasi selesai dan lulus uji sebelum melangkah ke poi
   - `src/lib/risk/positions.ts` (`evaluateExit` murni/deterministik — prioritas stop-loss → take-profit → trailing stop; peak price high-water mark utk trailing; `validateExitConfig` + `DEFAULT_EXIT_CONFIG` 3%/6%).
   - `src/lib/risk/monitor.ts` (`PositionTracker` menyimpan posisi terbuka + majukan peak tiap tick; `evaluate`/`signals` mark-to-market. `closePosition` mengevaluasi ulang → `getQuote` balik base→quote → `executeSwap` (pipeline Fase 4) → PnL riil (basis proporsional bigint-safe); `executeExits` menutup tiap sinyal & menghapus posisi hanya setelah eksekusi terkonfirmasi; error swap dilempar & posisi tetap terlacak — ZERO silent no-op).
   - Terverifikasi: `tsc --noEmit`, `eslint`, `next build` lulus semua (0 error). Jalur swap-balik memakai engine Fase 4 yang sudah diverifikasi live.
-- [ ] **5.3 Daily Max Loss (Circuit Breaker)**
-  - Melacak akumulasi rugi dalam 24 jam. Jika mencapai batas maksimal (misal -$15 atau -5% total equity), kunci bot dan ubah status ke `FROZEN_CIRCUIT_BREAKER`.
+- [x] **5.3 Daily Max Loss (Circuit Breaker)**
+  - Melacak akumulasi rugi dalam 24 jam. Jika mencapai batas maksimal (misal -$15 atau -5% total equity), kunci bot dan ubah status ke `CIRCUIT_BREAKER_TRIPPED`.
+  - `src/lib/risk/circuit-breaker.ts` (`DailyLossCircuitBreaker` murni/deterministik, dependency-free — `record`/`recordRealizedPnl` idempoten by `id` anti-double-count; window bergulir 24h (entri lama di-prune); trip saat rugi `>=` threshold = **min** dari `maxLossUsd` dan `maxLossPct×capitalUsd` (yang lebih ketat menang); latch `CIRCUIT_BREAKER_TRIPPED` + `lockedUntil = now + cooldownMs`; `canOpenBuy`/`assertCanOpenBuy` blokir beli (sell/exit tidak pernah diblokir); lock dilepas otomatis setelah 24 jam penuh; `tripManually`/`reset` untuk override operator; config divalidasi & misconfig dilempar).
+  - Terverifikasi: 20 skenario runtime lulus (ACTIVE bersih, trip di cap USD, cap %-tighter, blokir beli + lock 24 jam penuh, lift setelah cooldown, rolling window meng-ages-out, idempoten, manual+reset, throw `CircuitBreakerError`, validasi config) + `tsc --noEmit`, `eslint`, `next build` lulus 0 error.
 - [ ] **5.4 Tombol Darurat Manual (Panic Sell / Pause)**
   - Tombol di UI untuk membatalkan semua aktivitas dan melikuidasi posisi terbuka ke SOL/USDC secara instan.
 
