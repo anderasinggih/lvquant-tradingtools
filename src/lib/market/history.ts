@@ -7,10 +7,14 @@ import { HISTORY_TIMEFRAMES, type HistoryTimeframe, type MarketHistory, type Pri
    No mock data, real numbers only. */
 
 const PLAN: Record<HistoryTimeframe, { interval: string; limit: number }> = {
-  "1m": { interval: "1m", limit: 60 },  // 1 hour of 1-minute candles
-  "1D": { interval: "15m", limit: 96 }, // 24h of 15-minute candles
-  "1W": { interval: "1h", limit: 168 }, // 7d of hourly candles
-  "1M": { interval: "4h", limit: 180 }, // 30d of 4-hour candles
+  "1m": { interval: "1m", limit: 60 },
+  "5m": { interval: "5m", limit: 72 },
+  "15m": { interval: "15m", limit: 96 },
+  "30m": { interval: "30m", limit: 96 },
+  "1h": { interval: "1h", limit: 120 },
+  "4h": { interval: "4h", limit: 120 },
+  "1D": { interval: "1d", limit: 90 },
+  "1W": { interval: "1w", limit: 52 },
 }
 
 export async function getMarketHistory(tokenKey: string = "SOL"): Promise<MarketHistory> {

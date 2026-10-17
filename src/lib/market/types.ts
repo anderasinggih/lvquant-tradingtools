@@ -37,9 +37,9 @@ export interface LiveMarketPrice {
 export type FeedStatus = "connecting" | "live" | "error"
 
 /** The historical timeframes the price chart serves (Fase 3.2). */
-export type HistoryTimeframe = "1m" | "1D" | "1W" | "1M"
+export type HistoryTimeframe = "1m" | "5m" | "15m" | "30m" | "1h" | "4h" | "1D" | "1W"
 
-export const HISTORY_TIMEFRAMES: HistoryTimeframe[] = ["1m", "1D", "1W", "1M"]
+export const HISTORY_TIMEFRAMES: HistoryTimeframe[] = ["1m", "5m", "15m", "30m", "1h", "4h", "1D", "1W"]
 
 /** One OHLCV candle from a historical series (`time` in unix seconds, prices in USD). */
 export interface PriceCandle {

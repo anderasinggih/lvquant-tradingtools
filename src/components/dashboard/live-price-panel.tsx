@@ -26,11 +26,11 @@ const fmtPrice = (n: number) => {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-const CHART_TIMEFRAMES: ScrubTimeframe[] = ["1m", "1D", "1W", "1M"]
+const CHART_TIMEFRAMES: ScrubTimeframe[] = ["1m", "5m", "15m", "30m", "1h", "4h", "1D", "1W"]
 
 function pointLabel(tf: HistoryTimeframe, unixSeconds: number): string {
   const d = new Date(unixSeconds * 1000)
-  if (tf === "1m" || tf === "1D") {
+  if (tf === "1m" || tf === "5m" || tf === "15m" || tf === "30m" || tf === "1h") {
     return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })
   }
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" })

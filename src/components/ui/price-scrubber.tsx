@@ -24,25 +24,41 @@ const GREEN = "var(--chart-up)"
 const RED = "var(--chart-down)"
 
 /** every timeframe the scrubber knows about (the caller chooses which to show as pills) */
-export type ScrubTimeframe = "1m" | "1D" | "1W" | "1M" | "1Y" | "All"
+export type ScrubTimeframe = "1m" | "5m" | "15m" | "30m" | "1h" | "4h" | "1D" | "1W" | "1M" | "1Y" | "All"
 
 /** trailing window length per timeframe */
-const N: Record<ScrubTimeframe, number> = { "1m": 60, "1D": 78, "1W": 84, "1M": 90, "1Y": 120, All: 150 }
+const N: Record<ScrubTimeframe, number> = {
+  "1m": 60,
+  "5m": 72,
+  "15m": 96,
+  "30m": 96,
+  "1h": 120,
+  "4h": 120,
+  "1D": 90,
+  "1W": 52,
+  "1M": 90,
+  "1Y": 120,
+  All: 150,
+}
 
 function timeLabel(tf: ScrubTimeframe, f: number): string {
   const clamp = (x: number, top: number) => Math.max(0, Math.min(top, x))
   switch (tf) {
-    case "1m": {
-      const sec = Math.round(f * 3600)
-      const m = Math.floor(sec / 60)
-      return `${m}m ago`
-    }
-    case "1D": {
+    case "1m":
+      return `${Math.round((1 - f) * 60)}m ago`
+    case "5m":
+      return `${Math.round((1 - f) * 6)}h ago`
+    case "15m":
+    case "30m":
+    case "1h": {
       const m = 570 + Math.round(f * 390)
       return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`
     }
+    case "4h":
+    case "1D":
+      return `Day ${1 + Math.round(f * 89)}`
     case "1W":
-      return ["Mon", "Tue", "Wed", "Thu", "Fri"][clamp(Math.floor(f * 5), 4)]
+      return `Wk ${1 + Math.round(f * 51)}`
     case "1M":
       return `Day ${1 + Math.round(f * 29)}`
     case "1Y":
@@ -54,15 +70,32 @@ function timeLabel(tf: ScrubTimeframe, f: number): string {
 
 const AXES: Record<ScrubTimeframe, string[]> = {
   "1m": ["60m", "40m", "20m", "now"],
-  "1D": ["09:30", "11:30", "13:30", "15:30"],
-  "1W": ["Mon", "Wed", "Fri"],
+  "5m": ["6h", "4h", "2h", "now"],
+  "15m": ["24h", "16h", "8h", "now"],
+  "30m": ["48h", "32h", "16h", "now"],
+  "1h": ["5d", "3d", "1d", "now"],
+  "4h": ["20d", "14d", "7d", "now"],
+  "1D": ["90d", "60d", "30d", "now"],
+  "1W": ["52w", "36w", "18w", "now"],
   "1M": ["Wk 1", "Wk 2", "Wk 3", "Wk 4"],
   "1Y": ["Aug", "Nov", "Feb", "May"],
   All: ["’22", "’23", "’24", "’25", "’26"],
 }
 
 /** what the move is measured over, at rest */
-const WINDOW: Record<ScrubTimeframe, string> = { "1m": "past hour", "1D": "today", "1W": "past week", "1M": "past month", "1Y": "past year", All: "all time" }
+const WINDOW: Record<ScrubTimeframe, string> = {
+  "1m": "past hour",
+  "5m": "past 6 hours",
+  "15m": "past 24 hours",
+  "30m": "past 48 hours",
+  "1h": "past 5 days",
+  "4h": "past 20 days",
+  "1D": "past 90 days",
+  "1W": "past year",
+  "1M": "past month",
+  "1Y": "past year",
+  All: "all time",
+}
 
 const axisUsd = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`
 const fmtPrice = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
