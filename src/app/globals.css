@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+/* Class-based dark mode (vault components rely on `dark:` variants). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * SSYCH Components Vault — design tokens.
+ * All values sourced from fallback expressions used inside SSYCH_COMPONENTS_VAULT.md.
+ * Charts: up #34c28a / down #e06a6a (vault fallbacks), amber #e8b45a, chart-1 #489ffa.
+ * Surfaces: control/field/tip fills derive from --foreground via color-mix, matching
+ * the inline fallbacks in the vault source exactly.
+ */
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+
+  /* Financial chart hues */
+  --chart-up: #34c28a;
+  --chart-down: #e06a6a;
+  --chart-candle-down: var(--chart-down);
+  --chart-amber: #e8b45a;
+  --chart-1: #489ffa;
+  --chart-2: #8b7cf6;
+  --chart-3: #34c28a;
+  --chart-4: #e8b45a;
+  --chart-5: #e06a6a;
+
+  /* Control / surface tokens */
+  --control-fill: color-mix(in oklab, var(--foreground) 8%, transparent);
+  --control-fill-hover: color-mix(in oklab, var(--foreground) 12%, transparent);
+  --control-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--foreground) 6%, transparent);
+  --field-fill: color-mix(in oklab, var(--foreground) 5%, transparent);
+  --tip-fill: color-mix(in srgb, var(--foreground) 6%, var(--background));
+  --light-outline: color-mix(in srgb, var(--foreground) 9%, transparent);
+  --card: var(--background);
+  --card-shadow: 0 0 0 1px var(--light-outline), 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-k: 1;
+
+  /* Text lightness cap for up/down hues on light backgrounds (AA contrast) */
+  --ink-l: 0.55;
+
+  /* Coin brand hues (vault fallbacks) */
+  --coin-sol: #9945ff;
+  --coin-eth: #627eea;
+  --coin-btc: #f7931a;
+  --coin-bnb: #f3ba2f;
+  --coin-xrp: #23a0dc;
+  --coin-doge: #c3a634;
+  --coin-snap: #fffc00;
+  --coin-snap-glyph: #000;
+  --coin-glyph: #fff;
+  --coin-spot: #1db954;
+}
+
+.dark {
+  --background: #0c0c0c;
+  --foreground: #ededed;
+
+  --control-fill: color-mix(in oklab, var(--foreground) 8%, transparent);
+  --control-fill-hover: color-mix(in oklab, var(--foreground) 12%, transparent);
+  --control-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--foreground) 6%, transparent);
+  --field-fill: color-mix(in oklab, var(--foreground) 5%, transparent);
+  --tip-fill: color-mix(in srgb, var(--foreground) 6%, var(--background));
+  --light-outline: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --card: color-mix(in srgb, var(--foreground) 4%, var(--background));
+  --card-shadow: 0 0 0 1px color-mix(in srgb, var(--foreground) 10%, transparent);
+  --shadow-k: 0;
+
+  --ink-l: 1;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-chart-up: var(--chart-up);
+  --color-chart-down: var(--chart-down);
+  --color-chart-amber: var(--chart-amber);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-control-fill: var(--control-fill);
+  --color-control-fill-hover: var(--control-fill-hover);
+  --color-field-fill: var(--field-fill);
+  --color-tip-fill: var(--tip-fill);
+  --color-card: var(--card);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
