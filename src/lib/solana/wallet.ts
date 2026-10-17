@@ -1,7 +1,12 @@
-import { Keypair, LAMPORTS_PER_SOL, type PublicKey } from "@solana/web3.js"
+import {
+  Keypair,
+  LAMPORTS_PER_SOL,
+  PublicKey,
+  type ParsedAccountData,
+} from "@solana/web3.js"
 import bs58 from "bs58"
 
-import { getConnection, getRpcProvider } from "./connection"
+import { getConnection, getRpcProvider, RPC_COMMITMENT } from "./connection"
 import { EnvConfigError } from "./errors"
 import { withRpcRetry } from "./retry"
 
@@ -72,4 +77,56 @@ export async function getSolBalance(): Promise<SolBalance> {
     { operation: "getBalance", provider },
   )
   return { address: publicKey.toBase58(), lamports, sol: lamports / LAMPORTS_PER_SOL }
+}
+
+/** An SPL token holding for one owner: the (single) token account and its decoded balance. */
+export interface SplTokenBalance {
+  mint: string
+  /** the owner's associated token account for the mint ("" when none exists) */
+  tokenAccount: string
+  amountRaw: bigint
+  decimals: number
+  /** human amount (amountRaw / 10^decimals) */
+  amount: number
+}
+
+/**
+ * Read an owner's balance for a single SPL mint (`getParsedTokenAccountsByOwner`). When no token
+ * account exists the balance is reported as zero — never fabricated. `owner` defaults to the bot
+ * wallet. Throws `RpcRequestError` on a persistent RPC failure.
+ */
+export async function getSplTokenBalance(
+  mint: string,
+  owner?: PublicKey,
+): Promise<SplTokenBalance> {
+  const connection = getConnection()
+  const provider = getRpcProvider().name
+  const ownerKey = owner ?? getWalletPublicKey()
+  const mintKey = new PublicKey(mint)
+
+  const { value: accounts } = await withRpcRetry(
+    () => connection.getParsedTokenAccountsByOwner(ownerKey, { mint: mintKey }, RPC_COMMITMENT),
+    { operation: "getParsedTokenAccountsByOwner", provider },
+  )
+
+  let amountRaw = BigInt(0)
+  let decimals = 0
+  let tokenAccount = ""
+  for (const { pubkey, account } of accounts) {
+    const info = (account.data as ParsedAccountData).parsed?.info as
+      | { tokenAmount?: { amount?: unknown; decimals?: unknown } }
+      | undefined
+    const raw = info?.tokenAmount?.amount
+    if (typeof raw === "string" && /^\d+$/.test(raw)) amountRaw += BigInt(raw)
+    if (typeof info?.tokenAmount?.decimals === "number") decimals = info.tokenAmount.decimals
+    if (!tokenAccount) tokenAccount = pubkey.toBase58()
+  }
+
+  return {
+    mint,
+    tokenAccount,
+    amountRaw,
+    decimals,
+    amount: decimals > 0 ? Number(amountRaw) / 10 ** decimals : Number(amountRaw),
+  }
 }
