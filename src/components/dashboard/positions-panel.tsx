@@ -22,9 +22,22 @@ interface PositionItem {
   openedAt: string
 }
 
+interface TradeItem {
+  id: string
+  pair: string
+  entryPriceUsd: number
+  exitPriceUsd: number
+  exitReason: string
+  pnlUsd: number
+  pnlPct: number
+  openedAt: string
+  closedAt: string
+}
+
 interface BotStateResponse {
   openPositions: number
   positions: PositionItem[]
+  trades?: TradeItem[]
 }
 
 const VIEWS = ["Active positions", "Trade history"] as const
@@ -32,12 +45,13 @@ type View = (typeof VIEWS)[number]
 
 const NOTES: Record<View, string> = {
   "Active positions": "No active positions open on the wallet. Orders will appear here upon strategy signal fill.",
-  "Trade history": "No completed trades in current session. Filled swaps with Solscan receipts will list here.",
+  "Trade history": "No completed trades in current session. Filled swaps with execution receipts will list here.",
 }
 
 export function PositionsPanel() {
   const [view, setView] = useState<View>(VIEWS[0])
   const [positions, setPositions] = useState<PositionItem[]>([])
+  const [trades, setTrades] = useState<TradeItem[]>([])
   const [loading, setLoading] = useState(true)
 
   const fetchPositions = useCallback(async () => {
@@ -47,6 +61,9 @@ export function PositionsPanel() {
       const data = (await res.json()) as BotStateResponse
       if (Array.isArray(data?.positions)) {
         setPositions(data.positions)
+      }
+      if (Array.isArray(data?.trades)) {
+        setTrades(data.trades)
       }
     } catch {
       // transient network error ignored
@@ -89,6 +106,38 @@ export function PositionsPanel() {
                   <td className="py-2.5 text-foreground/45">{new Date(p.openedAt).toLocaleTimeString()}</td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      ) : view === "Trade history" && trades.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-[12px] tabular-nums">
+            <thead>
+              <tr className="border-b border-foreground/[0.08] text-foreground/45">
+                <th className="pb-2 font-normal">Pair</th>
+                <th className="pb-2 font-normal">Entry USD</th>
+                <th className="pb-2 font-normal">Exit USD</th>
+                <th className="pb-2 font-normal">Reason</th>
+                <th className="pb-2 font-normal">PnL USD</th>
+                <th className="pb-2 font-normal">Closed</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-foreground/[0.04]">
+              {trades.map((t) => {
+                const isProfit = t.pnlUsd >= 0
+                return (
+                  <tr key={t.id} className="text-foreground/90">
+                    <td className="py-2.5 font-medium">{t.pair}</td>
+                    <td className="py-2.5">${t.entryPriceUsd.toFixed(2)}</td>
+                    <td className="py-2.5">${t.exitPriceUsd.toFixed(2)}</td>
+                    <td className="py-2.5 font-mono text-[11px] uppercase text-foreground/60">{t.exitReason}</td>
+                    <td className={`py-2.5 font-mono font-medium ${isProfit ? "text-chart-up" : "text-chart-down"}`}>
+                      {isProfit ? "+" : ""}${t.pnlUsd.toFixed(2)} ({isProfit ? "+" : ""}{t.pnlPct.toFixed(2)}%)
+                    </td>
+                    <td className="py-2.5 text-foreground/45">{new Date(t.closedAt).toLocaleTimeString()}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

@@ -1,3 +1,7 @@
+import fs from "node:fs"
+import path from "node:path"
+
+import { getDryRunEngine } from "@/lib/bot/dry-run"
 import { messageOf } from "@/lib/solana/errors"
 import { DailyLossCircuitBreaker } from "@/lib/risk/circuit-breaker"
 import {
@@ -21,12 +25,76 @@ export type BotStatus = "RUNNING" | "PAUSED"
 /** Wider-than-normal slippage for a panic exit (2%) so the liquidation actually lands. */
 export const DEFAULT_PANIC_SLIPPAGE_BPS = 200
 
+/** Quant bot strategy & risk configuration parameters. */
+export interface QuantBotConfig {
+  strategy: "EMA Trend" | "Mean Reversion" | "Breakout"
+  venue: "Jupiter Spot" | "Drift Perp"
+  leverage: number
+  sizePct: number
+  stopLossPct: number
+  takeProfitPct: number
+  trailingStopEnabled: boolean
+  trailingArmPct: number
+  trailingOffsetPct: number
+  slippageBps: number
+  dailyLossLimitUsd: number
+  mode: "Dry-Run" | "Live Mainnet"
+  updatedAt: string
+}
+
+export const DEFAULT_BOT_CONFIG: QuantBotConfig = {
+  strategy: "EMA Trend",
+  venue: "Jupiter Spot",
+  leverage: 1,
+  sizePct: 5,
+  stopLossPct: 2.5,
+  takeProfitPct: 6.0,
+  trailingStopEnabled: true,
+  trailingArmPct: 2.0,
+  trailingOffsetPct: 1.0,
+  slippageBps: 100,
+  dailyLossLimitUsd: 100,
+  mode: "Dry-Run",
+  updatedAt: new Date().toISOString(),
+}
+
+const CONFIG_FILE_PATH = path.join(process.cwd(), "data", "bot-config.json")
+
+function loadPersistedConfig(): QuantBotConfig {
+  try {
+    if (fs.existsSync(CONFIG_FILE_PATH)) {
+      const raw = fs.readFileSync(CONFIG_FILE_PATH, "utf-8")
+      const parsed = JSON.parse(raw) as Partial<QuantBotConfig>
+      return {
+        ...DEFAULT_BOT_CONFIG,
+        ...parsed,
+      }
+    }
+  } catch {
+    // fallback to default
+  }
+  return { ...DEFAULT_BOT_CONFIG }
+}
+
+function savePersistedConfig(config: QuantBotConfig): void {
+  try {
+    const dir = path.dirname(CONFIG_FILE_PATH)
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true })
+    }
+    fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(config, null, 2), "utf-8")
+  } catch (err) {
+    console.error("Failed to persist bot config to disk:", err)
+  }
+}
+
 /** A JSON-safe snapshot of the bot's run state. */
 export interface BotState {
   status: BotStatus
   /** true while a trading loop should run (status RUNNING) */
   running: boolean
   openPositions: number
+  config: QuantBotConfig
   /** why the bot was last paused ("manual" | "panic_sell" | "not started" | …) */
   lastPauseReason: string | null
   /** ISO timestamp of the last panic sell, or null */
@@ -131,9 +199,51 @@ export class BotController {
   private lastPauseReason: string | null = "not started"
   private lastPanicAt: string | null = null
   private loopAbort = new AbortController()
+  private botConfig: QuantBotConfig = loadPersistedConfig()
 
   constructor() {
     this.loopAbort.abort()
+  }
+
+  getConfig(): QuantBotConfig {
+    return { ...this.botConfig }
+  }
+
+  updateConfig(patch: Partial<QuantBotConfig>): QuantBotConfig {
+    this.botConfig = {
+      ...this.botConfig,
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    }
+    savePersistedConfig(this.botConfig)
+
+    // If currently running in dry-run mode, hot-reload the running engine with the new parameters
+    if (this.botStatus === "RUNNING" && this.botConfig.mode === "Dry-Run") {
+      try {
+        const engine = getDryRunEngine()
+        if (engine.state().status === "RUNNING") {
+          engine.stop("config_reload")
+          engine.start({
+            intervalMs: 5000,
+            notionalUsd: Math.max(10, Math.round(this.botConfig.sizePct * 5)),
+            exitConfig: {
+              stopLossPct: this.botConfig.stopLossPct,
+              takeProfitPct: this.botConfig.takeProfitPct,
+              trailingStartPct: this.botConfig.trailingStopEnabled ? this.botConfig.trailingArmPct : undefined,
+              trailingStopPct: this.botConfig.trailingStopEnabled ? this.botConfig.trailingOffsetPct : undefined,
+            },
+            circuitBreakerConfig: {
+              maxLossUsd: this.botConfig.dailyLossLimitUsd,
+            },
+            signal: this.loopAbort.signal,
+          })
+        }
+      } catch (err) {
+        console.error("Failed to hot-reload dry-run engine config:", err)
+      }
+    }
+
+    return this.getConfig()
   }
 
   /** Aborts as soon as the bot is paused or a panic sell begins — the loop must observe it. */
@@ -154,6 +264,7 @@ export class BotController {
       status: this.botStatus,
       running: this.botStatus === "RUNNING",
       openPositions: this.tracker.size,
+      config: this.getConfig(),
       lastPauseReason: this.lastPauseReason,
       lastPanicAt: this.lastPanicAt,
       updatedAt: new Date().toISOString(),
@@ -175,6 +286,14 @@ export class BotController {
     if (this.botStatus === "RUNNING") this.loopAbort.abort()
     this.botStatus = "PAUSED"
     this.lastPauseReason = reason
+    try {
+      const engine = getDryRunEngine()
+      if (engine.state().status === "RUNNING") {
+        engine.stop(reason)
+      }
+    } catch {
+      // ignore
+    }
     return this.state()
   }
 
@@ -183,6 +302,31 @@ export class BotController {
     if (this.botStatus === "PAUSED") this.loopAbort = new AbortController()
     this.botStatus = "RUNNING"
     this.lastPauseReason = null
+
+    if (this.botConfig.mode === "Dry-Run") {
+      try {
+        const engine = getDryRunEngine()
+        if (engine.state().status !== "RUNNING") {
+          engine.start({
+            intervalMs: 5000,
+            notionalUsd: Math.max(10, Math.round(this.botConfig.sizePct * 5)),
+            exitConfig: {
+              stopLossPct: this.botConfig.stopLossPct,
+              takeProfitPct: this.botConfig.takeProfitPct,
+              trailingStartPct: this.botConfig.trailingStopEnabled ? this.botConfig.trailingArmPct : undefined,
+              trailingStopPct: this.botConfig.trailingStopEnabled ? this.botConfig.trailingOffsetPct : undefined,
+            },
+            circuitBreakerConfig: {
+              maxLossUsd: this.botConfig.dailyLossLimitUsd,
+            },
+            signal: this.loopAbort.signal,
+          })
+        }
+      } catch (err) {
+        console.error("Failed to start dry-run loop:", err)
+      }
+    }
+
     return this.state()
   }
 

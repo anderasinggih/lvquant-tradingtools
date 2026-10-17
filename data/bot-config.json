@@ -1,0 +1,15 @@
+{
+  "strategy": "EMA Trend",
+  "venue": "Jupiter Spot",
+  "leverage": 1,
+  "sizePct": 5,
+  "stopLossPct": 1.5,
+  "takeProfitPct": 6,
+  "trailingStopEnabled": true,
+  "trailingArmPct": 2,
+  "trailingOffsetPct": 1,
+  "slippageBps": 100,
+  "dailyLossLimitUsd": 250,
+  "mode": "Dry-Run",
+  "updatedAt": "2026-10-17T19:41:01.596Z"
+}

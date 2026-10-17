@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 import { Panel } from "@/components/dashboard/panel"
 import { BUTTON, BUTTON_PRIMARY } from "@/components/ui/control-classes"
@@ -23,6 +23,22 @@ const SLIPPAGES = ["50 bps (0.5%)", "100 bps (1.0%)", "200 bps (2.0%)"] as const
 const DAILY_LIMITS = ["$50", "$100", "$250", "$500"] as const
 const MODES = ["Dry-Run", "Live Mainnet"] as const
 
+interface QuantBotConfigResponse {
+  strategy?: (typeof STRATEGIES)[number]
+  venue?: (typeof VENUES)[number]
+  leverage?: number
+  sizePct?: number
+  stopLossPct?: number
+  takeProfitPct?: number
+  trailingStopEnabled?: boolean
+  trailingArmPct?: number
+  trailingOffsetPct?: number
+  slippageBps?: number
+  dailyLossLimitUsd?: number
+  mode?: (typeof MODES)[number]
+  updatedAt?: string
+}
+
 export function BotConfigPanel({ className }: { className?: string }) {
   const [strategy, setStrategy] = useState<(typeof STRATEGIES)[number]>("EMA Trend")
   const [venue, setVenue] = useState<(typeof VENUES)[number]>("Jupiter Spot")
@@ -36,10 +52,97 @@ export function BotConfigPanel({ className }: { className?: string }) {
   const [mode, setMode] = useState<(typeof MODES)[number]>("Dry-Run")
 
   const [savedStatus, setSavedStatus] = useState<string | null>(null)
+  const [errorStatus, setErrorStatus] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
 
-  const handleApply = () => {
-    setSavedStatus("Parameters saved to active trading controller.")
-    setTimeout(() => setSavedStatus(null), 3000)
+  // Load active persisted config from backend on mount
+  useEffect(() => {
+    let active = true
+    const loadConfig = async () => {
+      try {
+        const res = await fetch("/api/bot/config", { cache: "no-store" })
+        if (!res.ok) return
+        const cfg = (await res.json()) as QuantBotConfigResponse
+        if (!active || !cfg) return
+
+        if (cfg.strategy && STRATEGIES.includes(cfg.strategy)) setStrategy(cfg.strategy)
+        if (cfg.venue && VENUES.includes(cfg.venue)) setVenue(cfg.venue)
+        if (cfg.leverage) {
+          const levStr = `${cfg.leverage}x` as (typeof LEVERAGES)[number]
+          if (LEVERAGES.includes(levStr)) setLeverage(levStr)
+        }
+        if (cfg.sizePct) {
+          const sizeStr = `${cfg.sizePct}%` as (typeof SIZES)[number]
+          if (SIZES.includes(sizeStr)) setSize(sizeStr)
+        }
+        if (cfg.stopLossPct) {
+          const slStr = `${cfg.stopLossPct.toFixed(1)}%` as (typeof STOP_LOSSES)[number]
+          if (STOP_LOSSES.includes(slStr)) setStopLoss(slStr)
+        }
+        if (cfg.takeProfitPct) {
+          const tpStr = `${cfg.takeProfitPct.toFixed(1)}%` as (typeof TAKE_PROFITS)[number]
+          if (TAKE_PROFITS.includes(tpStr)) setTakeProfit(tpStr)
+        }
+        if (cfg.trailingStopEnabled !== undefined) {
+          setTrailingStop(cfg.trailingStopEnabled ? "Arm +2% / Trail 1%" : "Disabled")
+        }
+        if (cfg.slippageBps !== undefined) {
+          if (cfg.slippageBps <= 50) setSlippage("50 bps (0.5%)")
+          else if (cfg.slippageBps >= 200) setSlippage("200 bps (2.0%)")
+          else setSlippage("100 bps (1.0%)")
+        }
+        if (cfg.dailyLossLimitUsd) {
+          const limitStr = `$${cfg.dailyLossLimitUsd}` as (typeof DAILY_LIMITS)[number]
+          if (DAILY_LIMITS.includes(limitStr)) setDailyLimit(limitStr)
+        }
+        if (cfg.mode && MODES.includes(cfg.mode)) setMode(cfg.mode)
+      } catch {
+        // network error fallback
+      }
+    }
+    void loadConfig()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const handleApply = async () => {
+    setIsSaving(true)
+    setErrorStatus(null)
+    setSavedStatus(null)
+
+    const payload = {
+      strategy,
+      venue,
+      leverage: parseInt(leverage.replace("x", ""), 10) || 1,
+      sizePct: parseFloat(size.replace("%", "")) || 5,
+      stopLossPct: parseFloat(stopLoss.replace("%", "")) || 2.5,
+      takeProfitPct: parseFloat(takeProfit.replace("%", "")) || 6.0,
+      trailingStopEnabled: trailingStop !== "Disabled",
+      trailingArmPct: 2.0,
+      trailingOffsetPct: 1.0,
+      slippageBps: slippage.startsWith("50") ? 50 : slippage.startsWith("200") ? 200 : 100,
+      dailyLossLimitUsd: parseInt(dailyLimit.replace("$", ""), 10) || 100,
+      mode,
+    }
+
+    try {
+      const res = await fetch("/api/bot/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        throw new Error(data?.error || `Configuration update failed (${res.status})`)
+      }
+      setSavedStatus(`Configuration saved & active on trading engine (${new Date().toLocaleTimeString()}).`)
+      setTimeout(() => setSavedStatus(null), 5000)
+    } catch (err) {
+      setErrorStatus(err instanceof Error ? err.message : String(err))
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -177,9 +280,10 @@ export function BotConfigPanel({ className }: { className?: string }) {
             <button
               type="button"
               onClick={handleApply}
-              className={cn(BUTTON, "h-9 w-full font-medium text-[12.5px]")}
+              disabled={isSaving}
+              className={cn(BUTTON, "h-9 w-full font-medium text-[12.5px] disabled:opacity-50")}
             >
-              Apply & Save Configuration
+              {isSaving ? "Saving to Engine..." : "Apply & Save Configuration"}
             </button>
           </div>
         </div>
@@ -187,6 +291,12 @@ export function BotConfigPanel({ className }: { className?: string }) {
         {savedStatus && (
           <p className="font-mono text-[11px] text-chart-up" role="status">
             {savedStatus}
+          </p>
+        )}
+
+        {errorStatus && (
+          <p className="font-mono text-[11px] text-chart-down" role="alert">
+            {errorStatus}
           </p>
         )}
       </div>
