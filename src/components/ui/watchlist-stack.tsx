@@ -4,10 +4,12 @@ import { useId, useMemo, useRef, useState, type ReactNode } from "react"
 import { motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
+import { SegmentedControl } from "@/components/ui/segmented-control"
 
 /* Watchlist Stack from SSYCH Vault (line 22368).
    A stock & crypto watchlist rendered as a vertical list on hairlines:
    token disc, symbol over name, session sparkline, price over signed 24h move.
+   Supports Phantom Wallet style sorting: All, Top Gainers, Top Losers, Price.
    Scrubbing a row's line reads the point in place.
    Clicking a row selects that token as active on the dashboard.
    Strictly zero mock data, zero emojis. */
@@ -37,6 +39,9 @@ export interface WatchlistToken {
 
 const H = 26
 const WIDTH = 76
+
+const SORT_OPTIONS = ["All", "Top Gainers", "Top Losers", "Price"] as const
+type SortOption = (typeof SORT_OPTIONS)[number]
 
 function WatchlistRow({
   token,
@@ -193,6 +198,22 @@ export function WatchlistStack({
   className,
 }: WatchlistStackProps) {
   const [hot, setHot] = useState(false)
+  const [sortBy, setSortBy] = useState<SortOption>("All")
+
+  const sortedTokens = useMemo(() => {
+    const list = [...tokens]
+    switch (sortBy) {
+      case "Top Gainers":
+        return list.sort((a, b) => b.change24h - a.change24h)
+      case "Top Losers":
+        return list.sort((a, b) => a.change24h - b.change24h)
+      case "Price":
+        return list.sort((a, b) => b.price - a.price)
+      case "All":
+      default:
+        return list
+    }
+  }, [tokens, sortBy])
 
   if (!tokens || tokens.length === 0) return null
 
@@ -205,19 +226,28 @@ export function WatchlistStack({
       role="region"
       aria-label="Solana Meme & Ecosystem Watchlist"
     >
-      <div className="mb-2 flex items-center justify-between px-2 pt-1">
-        <div>
+      <div className="mb-2 flex flex-col gap-2 px-2 pt-1">
+        <div className="flex items-center justify-between">
           <h3 className="text-[13px] font-semibold tracking-[-0.01em] text-foreground/90">
-            Meme & Ecosystem Watchlist
+            Meme & Ecosystem Pairs
           </h3>
-          <p className="text-[11px] text-foreground/45">
-            {tokens.length} pairs tracked · Click any row to switch chart & execution
-          </p>
+          <span className="text-[11px] font-medium text-foreground/45">
+            {tokens.length} pairs
+          </span>
         </div>
+
+        {/* Sort Filter Pills (Phantom Wallet style) */}
+        <SegmentedControl
+          options={[...SORT_OPTIONS]}
+          value={sortBy}
+          onChange={(v) => setSortBy(v as SortOption)}
+          label="Sort pairs"
+          className="w-full text-[11px]"
+        />
       </div>
 
-      <div className="flex flex-col" onPointerLeave={() => setHot(false)}>
-        {tokens.map((t, idx) => (
+      <div className="flex max-h-[500px] flex-col overflow-y-auto" onPointerLeave={() => setHot(false)}>
+        {sortedTokens.map((t, idx) => (
           <WatchlistRow
             key={t.symbol}
             token={t}

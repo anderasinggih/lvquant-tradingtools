@@ -1,5 +1,6 @@
 /* The tokens the dashboard tracks. Mints are canonical Solana mainnet addresses.
-   Includes Solana core assets and leading meme tokens (BONK, WIF, POPCAT, JUP, RAY, BOME, MEW). */
+   Includes Solana core assets, top DeFi protocols, and leading meme tokens:
+   SOL, BONK, WIF, POPCAT, PNUT, GOAT, MOODENG, BOME, MEW, JUP, RAY, DRIFT, PYTH, JTO, RENDER. */
 
 export interface TokenInfo {
   mint: string
@@ -42,6 +43,42 @@ export const TOKENS = {
     decimals: 9,
     color: "#e54d2e",
   },
+  PNUT: {
+    mint: "2qEHjDLDLbuBgRYvsxhc5D6uDWAivNFZGan56P1tpump",
+    symbol: "PNUT",
+    name: "Peanut the Squirrel",
+    decimals: 6,
+    color: "#f59e0b",
+  },
+  GOAT: {
+    mint: "CzLSujWBLFsSjncfkh59rUFqvafWcY5tzedWJSuypump",
+    symbol: "GOAT",
+    name: "Goatseus Maximus",
+    decimals: 6,
+    color: "#a855f7",
+  },
+  MOODENG: {
+    mint: "ED5nyyWEzpPPiWimP8vYm7sD7TD3LAt3Q3gRTWHzPJBY",
+    symbol: "MOODENG",
+    name: "Moo Deng",
+    decimals: 6,
+    color: "#ec4899",
+  },
+  BOME: {
+    mint: "ukHH6c7mMyiWCf1b9pnWe25TSpkDDt3H5pQZgZ74J82",
+    symbol: "BOME",
+    name: "BOOK OF MEME",
+    decimals: 6,
+    binanceSymbol: "BOMEUSDT",
+    color: "#22c55e",
+  },
+  MEW: {
+    mint: "MEW1gQWJ3nEXg2qgERiKu7FAFj79PHvQVREQUzScPP5",
+    symbol: "MEW",
+    name: "cat in a dogs world",
+    decimals: 5,
+    color: "#f43f5e",
+  },
   JUP: {
     mint: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
     symbol: "JUP",
@@ -58,20 +95,37 @@ export const TOKENS = {
     binanceSymbol: "RAYUSDT",
     color: "#307cf8",
   },
-  BOME: {
-    mint: "ukHH6c7mMyiWCf1b9pnWe25TSpkDDt3H5pQZgZ74J82",
-    symbol: "BOME",
-    name: "BOOK OF MEME",
+  DRIFT: {
+    mint: "DriFtupJYLTosbwoN8koMbEYSx54aFAVLddWsbksjwg7",
+    symbol: "DRIFT",
+    name: "Drift",
     decimals: 6,
-    binanceSymbol: "BOMEUSDT",
-    color: "#22c55e",
+    binanceSymbol: "DRIFTUSDT",
+    color: "#8b5cf6",
   },
-  MEW: {
-    mint: "MEW1gQWJ3nEXg2qgERiKu7FAFj79PHvQVREQUzScPP5",
-    symbol: "MEW",
-    name: "cat in a dogs world",
-    decimals: 5,
-    color: "#f43f5e",
+  PYTH: {
+    mint: "HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3",
+    symbol: "PYTH",
+    name: "Pyth Network",
+    decimals: 6,
+    binanceSymbol: "PYTHUSDT",
+    color: "#e11d48",
+  },
+  JTO: {
+    mint: "jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL",
+    symbol: "JTO",
+    name: "Jito",
+    decimals: 9,
+    binanceSymbol: "JTOUSDT",
+    color: "#10b981",
+  },
+  RENDER: {
+    mint: "rndrizKT3MK1iimdxRdWabcF7Zg7AR5T4nud4EkHBof",
+    symbol: "RENDER",
+    name: "Render Token",
+    decimals: 8,
+    binanceSymbol: "RENDERUSDT",
+    color: "#ef4444",
   },
   USDC: {
     mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
@@ -96,8 +150,15 @@ export const TRACKED_TOKENS: TokenInfo[] = [
   TOKENS.BONK,
   TOKENS.WIF,
   TOKENS.POPCAT,
-  TOKENS.JUP,
-  TOKENS.RAY,
+  TOKENS.PNUT,
+  TOKENS.GOAT,
+  TOKENS.MOODENG,
   TOKENS.BOME,
   TOKENS.MEW,
+  TOKENS.JUP,
+  TOKENS.RAY,
+  TOKENS.DRIFT,
+  TOKENS.PYTH,
+  TOKENS.JTO,
+  TOKENS.RENDER,
 ]
