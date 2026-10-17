@@ -18,7 +18,15 @@ interface PositionItem {
   quoteSymbol: string
   baseAmount: number
   entryPriceUsd: number
+  currentPriceUsd?: number
   entryNotionalUsd: number
+  currentNotionalUsd?: number
+  unrealizedPnlUsd?: number
+  unrealizedPnlPct?: number
+  stopLossPriceUsd?: number
+  takeProfitPriceUsd?: number
+  trailingArmed?: boolean
+  trailingExitPriceUsd?: number | null
   openedAt: string
 }
 
@@ -74,7 +82,7 @@ export function PositionsPanel() {
 
   useEffect(() => {
     void fetchPositions()
-    const interval = setInterval(fetchPositions, 5000)
+    const interval = setInterval(fetchPositions, 3000)
     return () => clearInterval(interval)
   }, [fetchPositions])
 
@@ -90,22 +98,46 @@ export function PositionsPanel() {
             <thead>
               <tr className="border-b border-foreground/[0.08] text-foreground/45">
                 <th className="pb-2 font-normal">Pair</th>
-                <th className="pb-2 font-normal">Size</th>
-                <th className="pb-2 font-normal">Entry USD</th>
-                <th className="pb-2 font-normal">Notional</th>
+                <th className="pb-2 font-normal">Size (Notional)</th>
+                <th className="pb-2 font-normal">Entry</th>
+                <th className="pb-2 font-normal">Mark Price</th>
+                <th className="pb-2 font-normal">Live PnL</th>
+                <th className="pb-2 font-normal">Exit Targets (SL / TP)</th>
                 <th className="pb-2 font-normal">Opened</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-foreground/[0.04]">
-              {positions.map((p) => (
-                <tr key={p.id} className="text-foreground/90">
-                  <td className="py-2.5 font-medium">{p.pair}</td>
-                  <td className="py-2.5">{p.baseAmount.toFixed(4)} {p.baseSymbol}</td>
-                  <td className="py-2.5">${p.entryPriceUsd.toFixed(2)}</td>
-                  <td className="py-2.5">${p.entryNotionalUsd.toFixed(2)}</td>
-                  <td className="py-2.5 text-foreground/45">{new Date(p.openedAt).toLocaleTimeString()}</td>
-                </tr>
-              ))}
+              {positions.map((p) => {
+                const mark = p.currentPriceUsd ?? p.entryPriceUsd
+                const pnlUsd = p.unrealizedPnlUsd ?? 0
+                const pnlPct = p.unrealizedPnlPct ?? 0
+                const isProfit = pnlUsd >= 0
+
+                return (
+                  <tr key={p.id} className="text-foreground/90">
+                    <td className="py-2.5 font-medium">{p.pair}</td>
+                    <td className="py-2.5">
+                      <span className="font-mono">{p.baseAmount.toFixed(4)} {p.baseSymbol}</span>
+                      <span className="ml-1 text-[11px] text-foreground/40">(${p.entryNotionalUsd.toFixed(2)})</span>
+                    </td>
+                    <td className="py-2.5 font-mono">${p.entryPriceUsd.toFixed(2)}</td>
+                    <td className="py-2.5 font-mono">${mark.toFixed(2)}</td>
+                    <td className="py-2.5 font-mono">
+                      <span className={isProfit ? "text-chart-up font-medium" : "text-chart-down font-medium"}>
+                        {isProfit ? "+" : ""}${pnlUsd.toFixed(2)} ({isProfit ? "+" : ""}{pnlPct.toFixed(2)}%)
+                      </span>
+                    </td>
+                    <td className="py-2.5 text-[11px]">
+                      <div className="flex items-center gap-2 font-mono">
+                        <span className="text-chart-down">SL ${p.stopLossPriceUsd?.toFixed(2) ?? "—"}</span>
+                        <span className="text-foreground/25">/</span>
+                        <span className="text-chart-up">TP ${p.takeProfitPriceUsd?.toFixed(2) ?? "—"}</span>
+                      </div>
+                    </td>
+                    <td className="py-2.5 text-foreground/45 font-mono text-[11px]">{new Date(p.openedAt).toLocaleTimeString()}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
