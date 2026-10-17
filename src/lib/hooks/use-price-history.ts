@@ -4,10 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import type { FeedStatus, MarketHistory } from "@/lib/market/types"
 
-/* Polls `/api/market/history` and keeps the real per-timeframe series. Candles move slowly, so the
-   interval is longer than the live-price poll. Polling is pause-aware: it stops scheduling while the
-   tab is hidden and re-reads on return. No mock: on failure the status is `error` and the last real
-   data is kept (never replaced by a placeholder). */
+/* Polls `/api/market/history?token=...` and keeps the real per-timeframe series.
+   Supports dynamic token selection (SOL, BONK, WIF, etc).
+   No mock: on failure the status is `error` and the last real data is kept. */
 
 export interface PriceHistoryState {
   status: FeedStatus
@@ -19,9 +18,10 @@ export interface PriceHistoryState {
 const DEFAULT_INTERVAL_MS = 60_000
 
 export function usePriceHistory(
-  options: { intervalMs?: number } = {},
+  options: { intervalMs?: number; token?: string } = {},
 ): PriceHistoryState & { refresh: () => void } {
   const intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS
+  const token = options.token ?? "SOL"
 
   const [state, setState] = useState<PriceHistoryState>({
     status: "connecting",
@@ -44,7 +44,10 @@ export function usePriceHistory(
     abortRef.current = controller
 
     try {
-      const res = await fetch("/api/market/history", { signal: controller.signal, cache: "no-store" })
+      const res = await fetch(`/api/market/history?token=${encodeURIComponent(token)}`, {
+        signal: controller.signal,
+        cache: "no-store",
+      })
       const body = (await res.json().catch(() => null)) as
         | (MarketHistory & { error?: string; detail?: string })
         | null
@@ -59,35 +62,38 @@ export function usePriceHistory(
       setState({ status: "live", data: body, error: null, lastUpdatedAt: Date.now() })
     } catch (err) {
       if (controller.signal.aborted) return
-      setState((prev) => ({
-        ...prev,
-        status: "error",
-        error: err instanceof Error ? err.message : String(err),
-      }))
+      const message = err instanceof Error ? err.message : String(err)
+      setState((prev) => ({ ...prev, status: "error", error: message }))
     } finally {
-      if (!stoppedRef.current && !document.hidden) {
-        timerRef.current = setTimeout(poll, intervalMs)
+      if (!stoppedRef.current) {
+        timerRef.current = setTimeout(() => void poll(), intervalMs)
       }
     }
-  }, [intervalMs])
+  }, [intervalMs, token])
 
   useEffect(() => {
     stoppedRef.current = false
     void poll()
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        if (timerRef.current) {
+          clearTimeout(timerRef.current)
+          timerRef.current = null
+        }
+      } else {
+        void poll()
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange)
+
     return () => {
       stoppedRef.current = true
       abortRef.current?.abort()
       if (timerRef.current) clearTimeout(timerRef.current)
+      document.removeEventListener("visibilitychange", onVisibilityChange)
     }
   }, [poll])
 
-  useEffect(() => {
-    const onVisible = () => {
-      if (!document.hidden && !stoppedRef.current) void poll()
-    }
-    document.addEventListener("visibilitychange", onVisible)
-    return () => document.removeEventListener("visibilitychange", onVisible)
-  }, [poll])
-
-  return { ...state, refresh: () => void poll() }
+  return { ...state, refresh: poll }
 }

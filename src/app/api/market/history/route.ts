@@ -3,17 +3,18 @@ import { connection, NextResponse } from "next/server"
 import { getMarketHistory } from "@/lib/market/history"
 import { RpcRequestError } from "@/lib/solana/errors"
 
-/* Real per-timeframe SOL/USDC history for the price chart (Fase 3.2), from Binance public Klines —
-   keyless and free. No caching and no fallback: an upstream failure returns an explicit error so the
-   UI shows its disconnected state instead of a fabricated series (Rules §1 / §2).
-   `connection()` marks the handler request-time so Cache Components never prerenders it. */
+/* Real per-timeframe history for tracked pairs from Binance public Klines.
+   Takes an optional `?token=BONK` or `?token=WIF` to fetch history for specific tokens. */
 
 const NO_STORE = { "Cache-Control": "no-store" } as const
 
-export async function GET() {
+export async function GET(request: Request) {
   await connection()
+  const { searchParams } = new URL(request.url)
+  const token = searchParams.get("token") ?? "SOL"
+
   try {
-    const history = await getMarketHistory()
+    const history = await getMarketHistory(token)
     return NextResponse.json(history, { status: 200, headers: NO_STORE })
   } catch (err) {
     if (err instanceof RpcRequestError) {

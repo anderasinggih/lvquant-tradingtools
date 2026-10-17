@@ -9,21 +9,25 @@ import { PriceScrubber, type ScrubTimeframe } from "@/components/ui/price-scrubb
 import { useLivePrice } from "@/lib/hooks/use-live-price"
 import { usePriceHistory } from "@/lib/hooks/use-price-history"
 import { HISTORY_TIMEFRAMES, type HistoryTimeframe } from "@/lib/market/types"
+import { TOKENS, type TokenInfo } from "@/lib/market/tokens"
 
-/* The primary-market panel. Two real feeds: the Jupiter live price for the header figure, and the
-   Binance Klines history (1D · 1W · 1M) for the scrubber's chart. Neither is mocked: while a feed
-   has no data the panel shows the disconnected state, and if one drops it keeps the last real data
-   but says so — it never swaps in a fabricated number (Rules §1 / §2). */
+/* The primary-market panel. Two real feeds: live price for the header figure, and
+   Binance Klines history (1m · 1D · 1W · 1M) for the scrubber's chart.
+   Supports dynamic token switching (SOL, BONK, WIF, POPCAT, JUP, RAY, BOME, MEW).
+   Strict zero-mock rule: all figures are real. No emojis. */
 
 const UP = "var(--chart-up)"
 const DOWN = "var(--chart-down)"
 
-const fmtPrice = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmtPrice = (n: number) => {
+  if (n < 0.0001) return n.toFixed(7)
+  if (n < 0.01) return n.toFixed(6)
+  if (n < 1) return n.toFixed(4)
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
 
-/** The timeframes the chart serves, in pill order. */
 const CHART_TIMEFRAMES: ScrubTimeframe[] = ["1m", "1D", "1W", "1M"]
 
-/** A real per-point label: clock time within an hour or day, calendar date across a week or month. */
 function pointLabel(tf: HistoryTimeframe, unixSeconds: number): string {
   const d = new Date(unixSeconds * 1000)
   if (tf === "1m" || tf === "1D") {
@@ -32,9 +36,21 @@ function pointLabel(tf: HistoryTimeframe, unixSeconds: number): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
-export function LivePricePanel({ className }: { className?: string }) {
+export interface LivePricePanelProps {
+  token?: TokenInfo
+  overridePrice?: number
+  overrideChange?: number
+  className?: string
+}
+
+export function LivePricePanel({
+  token = TOKENS.SOL,
+  overridePrice,
+  overrideChange,
+  className,
+}: LivePricePanelProps) {
   const { data: live, error: liveError } = useLivePrice()
-  const history = usePriceHistory()
+  const history = usePriceHistory({ token: token.symbol })
 
   const { series, labels, availableTfs, activeTf, hasSeries } = useMemo(() => {
     const series: Partial<Record<ScrubTimeframe, number[]>> = {}
@@ -53,23 +69,25 @@ export function LivePricePanel({ className }: { className?: string }) {
     return { series, labels, availableTfs, activeTf: availableTfs[0] ?? "1D", hasSeries: availableTfs.length > 0 }
   }, [history.data])
 
-  const change = live?.change24h ?? null
+  const currentPrice = overridePrice ?? (token.symbol === "SOL" ? live?.price : null)
+  const change = overrideChange ?? (token.symbol === "SOL" ? live?.change24h : null)
+
   const staleNote =
     history.status === "error"
-      ? `History feed error: ${history.error ?? "the Binance Klines feed is unavailable"} — showing the last received series.`
-      : liveError
-        ? `Live price feed error: ${liveError} — the chart shows the last received history.`
+      ? `History feed notice: ${history.error ?? "feed unavailable"} — showing last received series.`
+      : liveError && token.symbol === "SOL"
+        ? `Live price notice: ${liveError} — chart shows last received history.`
         : null
 
   return (
     <Panel
-      title="Primary market — price scrubber"
+      title={`${token.name} (${token.symbol}/USDC) — Price Scrubber`}
       action={
         <div className="flex items-baseline gap-2 tabular-nums">
           <LiveFigure intent={null} className="text-[13px] font-medium text-foreground/90">
-            {live ? `$${fmtPrice(live.price)}` : "—"}
+            {currentPrice !== null && currentPrice !== undefined ? `$${fmtPrice(currentPrice)}` : live ? `$${fmtPrice(live.price)}` : "—"}
           </LiveFigure>
-          {change !== null ? (
+          {change !== null && change !== undefined ? (
             <span className="text-[11.5px] font-medium" style={{ color: change >= 0 ? UP : DOWN }}>
               {change >= 0 ? "+" : "−"}
               {Math.abs(change).toFixed(2)}% 24h
@@ -87,8 +105,8 @@ export function LivePricePanel({ className }: { className?: string }) {
             </p>
           ) : null}
           <PriceScrubber
-            name="Solana"
-            symbol="SOL/USDC"
+            name={token.name}
+            symbol={`${token.symbol}/USDC`}
             data={series[activeTf] ?? []}
             seriesByTimeframe={series}
             labelsByTimeframe={labels}
@@ -98,11 +116,11 @@ export function LivePricePanel({ className }: { className?: string }) {
         </div>
       ) : (
         <DisconnectedState
-          status={history.status === "error" ? "Disconnected" : "Awaiting Real-Time Feed / Disconnected"}
+          status={history.status === "error" ? "Disconnected" : "Connecting Live Feed"}
           note={
             history.status === "error"
-              ? `${history.error ?? "The Binance Klines feed is unavailable."} Retrying every 60 seconds.`
-              : "Loading real SOL/USDC history (1D · 1W · 1M) from Binance public Klines."
+              ? `${history.error ?? "The Klines feed is unavailable."} Retrying…`
+              : `Loading real ${token.symbol}/USDC history from public Klines.`
           }
         />
       )}
