@@ -73,8 +73,11 @@ Setiap langkah wajib diverifikasi selesai dan lulus uji sebelum melangkah ke poi
   - `src/lib/risk/portfolio.ts` (`getWalletPortfolio` baca saldo riil SOL+USDC; `sizeNextTrade(side, config?)` gabungkan harga SOL/USDC live Jupiter → ukuran trade).
   - `src/lib/solana/wallet.ts` + `getSplTokenBalance(mint, owner?)` (baca saldo SPL via `getParsedTokenAccountsByOwner`).
   - Terverifikasi: 7 skenario (sell/buy 2%/5%, proteksi reserve 0.06→0.01 SOL `limitedBy:"reserve"`, gas-blocked 0.03 SOL, `no_balance`, presisi USDC besar) + live RPC baca saldo USDC nyata (akun Raydium authority > 17 jt USDC) lulus; config 6% ditolak.
-- [ ] **5.2 Hard Stop-Loss & Take-Profit Monitor**
+- [x] **5.2 Hard Stop-Loss & Take-Profit Monitor**
   - Evaluasi harga setiap interval loop. Jika posisi aktif menyentuh batas rugi (cth: -3%), eksekusi swap balik ke SOL/USDC seketika.
+  - `src/lib/risk/positions.ts` (`evaluateExit` murni/deterministik — prioritas stop-loss → take-profit → trailing stop; peak price high-water mark utk trailing; `validateExitConfig` + `DEFAULT_EXIT_CONFIG` 3%/6%).
+  - `src/lib/risk/monitor.ts` (`PositionTracker` menyimpan posisi terbuka + majukan peak tiap tick; `evaluate`/`signals` mark-to-market. `closePosition` mengevaluasi ulang → `getQuote` balik base→quote → `executeSwap` (pipeline Fase 4) → PnL riil (basis proporsional bigint-safe); `executeExits` menutup tiap sinyal & menghapus posisi hanya setelah eksekusi terkonfirmasi; error swap dilempar & posisi tetap terlacak — ZERO silent no-op).
+  - Terverifikasi: `tsc --noEmit`, `eslint`, `next build` lulus semua (0 error). Jalur swap-balik memakai engine Fase 4 yang sudah diverifikasi live.
 - [ ] **5.3 Daily Max Loss (Circuit Breaker)**
   - Melacak akumulasi rugi dalam 24 jam. Jika mencapai batas maksimal (misal -$15 atau -5% total equity), kunci bot dan ubah status ke `FROZEN_CIRCUIT_BREAKER`.
 - [ ] **5.4 Tombol Darurat Manual (Panic Sell / Pause)**
