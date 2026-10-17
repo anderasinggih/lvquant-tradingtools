@@ -90,7 +90,7 @@ export function DashboardHeader() {
                 disabled={connecting}
                 className={`${BUTTON} h-8 px-4 text-[12px] font-medium cursor-pointer`}
               >
-                {connecting ? "Connecting..." : "Connect Phantom Wallet"}
+                {connecting ? "Connecting..." : "Connect Wallet"}
               </button>
             )}
           </div>
