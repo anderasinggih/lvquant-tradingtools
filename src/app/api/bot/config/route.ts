@@ -32,6 +32,13 @@ export async function POST(request: Request) {
     // Validate numeric ranges to guarantee capital safety (Rules §5)
     const patch: Partial<QuantBotConfig> = {}
 
+    if (body.pair !== undefined) {
+      if (typeof body.pair !== "string" || !body.pair.endsWith("/USDC")) {
+        return NextResponse.json({ error: "Invalid trading pair format (e.g. SOL/USDC)" }, { status: 400, headers: NO_STORE })
+      }
+      patch.pair = body.pair.toUpperCase()
+    }
+
     if (body.strategy !== undefined) {
       if (!["EMA Trend", "Mean Reversion", "Breakout"].includes(body.strategy)) {
         return NextResponse.json({ error: "Invalid strategy" }, { status: 400, headers: NO_STORE })

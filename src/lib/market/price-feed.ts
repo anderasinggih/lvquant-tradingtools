@@ -28,9 +28,10 @@ function quoteFor(token: TokenInfo, price: JupiterPrice | undefined): TokenQuote
   }
 }
 
-/** Read the current SOL/USDC price (SOL's USD price over USDC's). */
-export async function getLiveMarketPrice(): Promise<LiveMarketPrice> {
-  const { base, quote } = TARGET_PAIR
+/** Read the current price for a token pair (defaults to SOL/USDC). */
+export async function getLiveMarketPrice(customBaseToken?: TokenInfo): Promise<LiveMarketPrice> {
+  const base = customBaseToken ?? TARGET_PAIR.base
+  const quote = TARGET_PAIR.quote
   const prices = await fetchJupiterPrices([base.mint, quote.mint])
 
   const baseQuote = quoteFor(base, prices[base.mint])
@@ -42,7 +43,7 @@ export async function getLiveMarketPrice(): Promise<LiveMarketPrice> {
 
   const price = baseQuote.usdPrice / quoteQuote.usdPrice
   return {
-    pair: TARGET_PAIR.label,
+    pair: `${base.symbol}/${quote.symbol}`,
     price,
     base: baseQuote,
     quote: quoteQuote,

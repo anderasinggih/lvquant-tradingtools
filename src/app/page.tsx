@@ -134,7 +134,7 @@ export default function Home() {
             />
 
             {/* Quant Strategy & Risk Configuration */}
-            <BotConfigPanel />
+            <BotConfigPanel activeSymbol={selectedSymbol} />
 
             {/* Quant Safety & Execution Controls */}
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">

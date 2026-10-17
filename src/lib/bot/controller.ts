@@ -4,6 +4,7 @@ import path from "node:path"
 import { getDryRunEngine } from "@/lib/bot/dry-run"
 import { messageOf } from "@/lib/solana/errors"
 import { DailyLossCircuitBreaker } from "@/lib/risk/circuit-breaker"
+import { TRACKED_TOKENS, TOKENS, type TokenInfo } from "@/lib/market/tokens"
 import {
   PositionTracker,
   liquidatePosition,
@@ -27,6 +28,7 @@ export const DEFAULT_PANIC_SLIPPAGE_BPS = 200
 
 /** Quant bot strategy & risk configuration parameters. */
 export interface QuantBotConfig {
+  pair: string
   strategy: "EMA Trend" | "Mean Reversion" | "Breakout"
   venue: "Jupiter Spot" | "Drift Perp"
   leverage: number
@@ -43,6 +45,7 @@ export interface QuantBotConfig {
 }
 
 export const DEFAULT_BOT_CONFIG: QuantBotConfig = {
+  pair: "SOL/USDC",
   strategy: "EMA Trend",
   venue: "Jupiter Spot",
   leverage: 1,
@@ -56,6 +59,11 @@ export const DEFAULT_BOT_CONFIG: QuantBotConfig = {
   dailyLossLimitUsd: 100,
   mode: "Dry-Run",
   updatedAt: new Date().toISOString(),
+}
+
+export function resolveBaseToken(pair: string): TokenInfo {
+  const sym = pair.split("/")[0]?.toUpperCase()
+  return TRACKED_TOKENS.find((t) => t.symbol.toUpperCase() === sym) ?? TOKENS.SOL
 }
 
 const CONFIG_FILE_PATH = path.join(process.cwd(), "data", "bot-config.json")
@@ -223,7 +231,9 @@ export class BotController {
         const engine = getDryRunEngine()
         if (engine.state().status === "RUNNING") {
           engine.stop("config_reload")
+          const baseToken = resolveBaseToken(this.botConfig.pair)
           engine.start({
+            baseToken,
             intervalMs: 5000,
             notionalUsd: Math.max(10, Math.round(this.botConfig.sizePct * 5)),
             exitConfig: {
@@ -307,7 +317,9 @@ export class BotController {
       try {
         const engine = getDryRunEngine()
         if (engine.state().status !== "RUNNING") {
+          const baseToken = resolveBaseToken(this.botConfig.pair)
           engine.start({
+            baseToken,
             intervalMs: 5000,
             notionalUsd: Math.max(10, Math.round(this.botConfig.sizePct * 5)),
             exitConfig: {

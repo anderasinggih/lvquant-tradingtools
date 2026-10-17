@@ -23,7 +23,19 @@ const SLIPPAGES = ["50 bps (0.5%)", "100 bps (1.0%)", "200 bps (2.0%)"] as const
 const DAILY_LIMITS = ["$50", "$100", "$250", "$500"] as const
 const MODES = ["Dry-Run", "Live Mainnet"] as const
 
+export const DEFAULT_BOT_PAIRS = [
+  "SOL/USDC",
+  "BONK/USDC",
+  "WIF/USDC",
+  "POPCAT/USDC",
+  "PNUT/USDC",
+  "GOAT/USDC",
+  "JUP/USDC",
+  "RAY/USDC",
+] as const
+
 interface QuantBotConfigResponse {
+  pair?: string
   strategy?: (typeof STRATEGIES)[number]
   venue?: (typeof VENUES)[number]
   leverage?: number
@@ -39,7 +51,14 @@ interface QuantBotConfigResponse {
   updatedAt?: string
 }
 
-export function BotConfigPanel({ className }: { className?: string }) {
+export function BotConfigPanel({
+  className,
+  activeSymbol,
+}: {
+  className?: string
+  activeSymbol?: string
+}) {
+  const [pair, setPair] = useState<string>("SOL/USDC")
   const [strategy, setStrategy] = useState<(typeof STRATEGIES)[number]>("EMA Trend")
   const [venue, setVenue] = useState<(typeof VENUES)[number]>("Jupiter Spot")
   const [leverage, setLeverage] = useState<(typeof LEVERAGES)[number]>("1x")
@@ -65,6 +84,7 @@ export function BotConfigPanel({ className }: { className?: string }) {
         const cfg = (await res.json()) as QuantBotConfigResponse
         if (!active || !cfg) return
 
+        if (cfg.pair) setPair(cfg.pair.toUpperCase())
         if (cfg.strategy && STRATEGIES.includes(cfg.strategy)) setStrategy(cfg.strategy)
         if (cfg.venue && VENUES.includes(cfg.venue)) setVenue(cfg.venue)
         if (cfg.leverage) {
@@ -112,6 +132,7 @@ export function BotConfigPanel({ className }: { className?: string }) {
     setSavedStatus(null)
 
     const payload = {
+      pair,
       strategy,
       venue,
       leverage: parseInt(leverage.replace("x", ""), 10) || 1,
@@ -136,7 +157,7 @@ export function BotConfigPanel({ className }: { className?: string }) {
       if (!res.ok) {
         throw new Error(data?.error || `Configuration update failed (${res.status})`)
       }
-      setSavedStatus(`Configuration saved & active on trading engine (${new Date().toLocaleTimeString()}).`)
+      setSavedStatus(`Configuration saved & active on ${pair} (${new Date().toLocaleTimeString()}).`)
       setTimeout(() => setSavedStatus(null), 5000)
     } catch (err) {
       setErrorStatus(err instanceof Error ? err.message : String(err))
@@ -144,6 +165,10 @@ export function BotConfigPanel({ className }: { className?: string }) {
       setIsSaving(false)
     }
   }
+
+  const availablePairs = Array.from(
+    new Set([...DEFAULT_BOT_PAIRS, `${activeSymbol ?? "SOL"}/USDC`]),
+  )
 
   return (
     <Panel
@@ -159,6 +184,30 @@ export function BotConfigPanel({ className }: { className?: string }) {
       className={className}
     >
       <div className="flex flex-col gap-5 text-[12px]">
+        {/* Row 0: Target Trading Pair */}
+        <div>
+          <div className="mb-1.5 flex items-center justify-between font-medium text-foreground/60">
+            <span>Target Trading Pair</span>
+            {activeSymbol && pair !== `${activeSymbol}/USDC` ? (
+              <button
+                type="button"
+                onClick={() => setPair(`${activeSymbol}/USDC`)}
+                className="font-mono text-[11px] text-chart-up hover:underline"
+              >
+                Set Bot to {activeSymbol}/USDC
+              </button>
+            ) : (
+              <span className="text-[11px] text-foreground/45">Bot executes trades on this market</span>
+            )}
+          </div>
+          <SegmentedControl
+            options={availablePairs}
+            value={pair}
+            onChange={(v) => setPair(v)}
+            label="Trading pair"
+          />
+        </div>
+
         {/* Row 1: Strategy & Venue */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>

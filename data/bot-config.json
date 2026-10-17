@@ -1,7 +1,8 @@
 {
-  "strategy": "EMA Trend",
+  "pair": "BONK/USDC",
+  "strategy": "Mean Reversion",
   "venue": "Jupiter Spot",
-  "leverage": 1,
+  "leverage": 10,
   "sizePct": 5,
   "stopLossPct": 1.5,
   "takeProfitPct": 6,
@@ -9,7 +10,7 @@
   "trailingArmPct": 2,
   "trailingOffsetPct": 1,
   "slippageBps": 100,
-  "dailyLossLimitUsd": 250,
+  "dailyLossLimitUsd": 50,
   "mode": "Dry-Run",
-  "updatedAt": "2026-10-17T19:41:01.596Z"
+  "updatedAt": "2026-10-17T20:03:59.366Z"
 }

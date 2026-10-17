@@ -39,7 +39,7 @@ export async function GET() {
             return {
               id: dryRun.openPosition.id,
               pair: dryRun.openPosition.pair,
-              baseSymbol: "SOL",
+              baseSymbol: dryRun.openPosition.pair.split("/")[0] ?? "SOL",
               quoteSymbol: "USDC",
               baseAmountRaw: "0",
               baseAmount: dryRun.openPosition.baseAmount,

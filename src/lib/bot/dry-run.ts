@@ -1,5 +1,5 @@
 import { getLiveMarketPrice } from "@/lib/market/price-feed"
-import { TARGET_PAIR } from "@/lib/market/tokens"
+import { TARGET_PAIR, type TokenInfo } from "@/lib/market/tokens"
 import {
   DailyLossCircuitBreaker,
   DEFAULT_CIRCUIT_BREAKER_CONFIG,
@@ -31,6 +31,8 @@ export type DryRunStatus = "IDLE" | "RUNNING" | "STOPPED" | "COMPLETED"
 export const MAX_CONSECUTIVE_PRICE_ERRORS = 5
 
 export interface DryRunOptions {
+  /** Target token to trade against quote (defaults to SOL). */
+  baseToken?: TokenInfo
   /** ms between ticks; default 5000. */
   intervalMs?: number
   /** stop after this many ticks; null/omitted = run until stopped. */
@@ -48,6 +50,7 @@ export interface DryRunOptions {
 }
 
 interface ResolvedOptions {
+  baseToken: TokenInfo
   intervalMs: number
   maxTicks: number | null
   notionalUsd: number
@@ -111,6 +114,7 @@ export interface DryRunState {
 }
 
 const DEFAULT_OPTIONS: ResolvedOptions = {
+  baseToken: TARGET_PAIR.base,
   intervalMs: 5000,
   maxTicks: null,
   notionalUsd: 20,
@@ -120,6 +124,7 @@ const DEFAULT_OPTIONS: ResolvedOptions = {
 }
 
 function resolveOptions(options: DryRunOptions): ResolvedOptions {
+  const baseToken = options.baseToken ?? DEFAULT_OPTIONS.baseToken
   const intervalMs = options.intervalMs ?? DEFAULT_OPTIONS.intervalMs
   if (!Number.isFinite(intervalMs) || intervalMs < 250) {
     throw new Error("intervalMs must be a number >= 250")
@@ -139,7 +144,7 @@ function resolveOptions(options: DryRunOptions): ResolvedOptions {
   const exitConfig = options.exitConfig ?? DEFAULT_OPTIONS.exitConfig
   validateExitConfig(exitConfig)
   const circuitBreakerConfig = options.circuitBreakerConfig ?? DEFAULT_OPTIONS.circuitBreakerConfig
-  return { intervalMs, maxTicks, notionalUsd, exitConfig, circuitBreakerConfig, maxLogEntries }
+  return { baseToken, intervalMs, maxTicks, notionalUsd, exitConfig, circuitBreakerConfig, maxLogEntries }
 }
 
 const price4 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })
@@ -197,7 +202,8 @@ export class DryRunEngine {
     this.status = "RUNNING"
 
     this.attachSignal(options.signal)
-    this.logLine("info", `dry-run started — ${TARGET_PAIR.label}, every ${this.options.intervalMs}ms, notional $${this.options.notionalUsd}`)
+    const pairLabel = `${this.options.baseToken.symbol}/${TARGET_PAIR.quote.symbol}`
+    this.logLine("info", `dry-run started — ${pairLabel}, every ${this.options.intervalMs}ms, notional $${this.options.notionalUsd}`)
     this.schedule(0)
     return this.state()
   }
@@ -256,7 +262,7 @@ export class DryRunEngine {
 
     let price: number
     try {
-      const live = await getLiveMarketPrice()
+      const live = await getLiveMarketPrice(this.options.baseToken)
       if (!(live.price > 0)) throw new Error("live price feed returned a non-positive price")
       price = live.price
       this.consecutiveErrors = 0
@@ -339,7 +345,9 @@ export class DryRunEngine {
   }
 
   private openPaperPosition(price: number, now: number): void {
-    const { base, quote } = TARGET_PAIR
+    const base = this.options.baseToken
+    const quote = TARGET_PAIR.quote
+    const pairLabel = `${base.symbol}/${quote.symbol}`
     const baseAmountRaw = usdToTokenRaw(this.options.notionalUsd, price, base.decimals)
     if (baseAmountRaw <= BigInt(0)) {
       this.logLine("warn", "sized paper position rounded to zero — skipping entry")
@@ -347,7 +355,7 @@ export class DryRunEngine {
     }
     const position = createPosition({
       id: `dry-${now}-${this.counters.ticks}`,
-      pair: TARGET_PAIR.label,
+      pair: pairLabel,
       base,
       quote,
       entryPriceUsd: price,
